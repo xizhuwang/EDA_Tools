@@ -1,5 +1,5 @@
 // Original UI for educational timing and structural reports. GPL-2.0-or-later.
-import {virtualTech}from'./analysis.js';
+import {virtualTech}from'./analysis.js?v=20261030-2';
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let last=null,activePath=0,language='zh';const text=(zh,en)=>language==='zh'?zh:en;
 export function setupWorkbench(){

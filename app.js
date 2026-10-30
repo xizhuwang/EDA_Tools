@@ -1,6 +1,6 @@
 // Copyright 2026 Xi-Zhu Wang. GPL-2.0-or-later.
 import {examples,makeSram,parseVcd,valueAt,displayValue,orfsTemplate} from './core.js';
-import {setupWorkbench,clearAnalysis,updateLanguage,renderChecks,acceptAnalysis} from './workbench.js';
+import {setupWorkbench,clearAnalysis,updateLanguage,renderChecks,acceptAnalysis} from './workbench.js?v=20261030-2';
 const $=id=>document.getElementById(id),key='eda-tools:workspace:v1';let locale='zh',worker=null,timer=null,jobId=0,vcd='',parsed=null,netlist='',saveTimer,cursor=0,selected=new Set();
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const t=(zh,en)=>locale==='zh'?zh:en;
@@ -21,7 +21,7 @@ function run(action){
   if(worker)return;const id=++jobId;['run','lint','synth'].forEach(k=>$(k).disabled=true);$('cancel').disabled=false;
   $('job-status').textContent=t('執行中：首次需下載工具…','Running: first use downloads tool files…');$('runtime-state').textContent='◌ Worker active';
   tab(action==='run'?'log':action==='lint'?'check':'report');$('console').textContent='Starting '+action+'…';
-  worker=new Worker('./engine/worker.js',{type:'module'});
+  worker=new Worker('./engine/worker.js?v=20261030-2',{type:'module'});
   timer=setTimeout(()=>{cancel(t('逾時，已停止 Worker；可重新執行。','Timed out. Worker stopped; retry when ready.'));$('console').textContent=t('執行逾時。請檢查零延遲迴圈、無 $finish 或過大設計。','Execution timed out. Check zero-delay loops, missing $finish or large designs.');},action==='run'?60000:180000);
   worker.onerror=e=>{if(id!==jobId)return;finish();$('job-status').textContent='Engine error';$('console').textContent=e.message;tab('log');};
   worker.onmessage=({data:r})=>{

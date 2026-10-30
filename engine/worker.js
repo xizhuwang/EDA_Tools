@@ -1,7 +1,7 @@
 // GPL-2.0-or-later. Icarus adapter derived from Xi-Zhu Wang's RTL Interview Lab.
 import {loadIcarus} from './runtime-loader.js';
 import {netlistStats} from '../core.js';
-import {analyzePaths,structuralChecks,placementSketch,sourceLine} from '../analysis.js';
+import {analyzePaths,structuralChecks,placementSketch,sourceLine} from '../analysis.js?v=20261030-2';
 const LIMIT=24000;
 function logSink(){let text='';const decoder=new TextDecoder();return {push(v){if(v==null)return;const chunk=typeof v==='string'?v:typeof v==='number'?String.fromCharCode(v):ArrayBuffer.isView(v)?decoder.decode(v,{stream:true}):String(v);if(text.length<LIMIT)text+=chunk.slice(0,LIMIT-text.length);},get text(){return text;}};}
 const ivlConfig=(top)=>`basedir:/\nmodule:system.vpi\ngeneration:2005\ngeneration:no-specify\nout:/out.vvp\niwidth:32\nwidthcap:65536\nfunctor:cprop\nfunctor:nodangle\nflag:DLL=vvp.tgt\nroot:${top}\n`;
