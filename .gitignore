@@ -1,0 +1,4 @@
+.engine-cache/
+node_modules/
+outputs/
+*.log
