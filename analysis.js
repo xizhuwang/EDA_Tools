@@ -21,7 +21,7 @@ export function analyzePaths(netlist,frequencyMHz=100){
   const d=g.drivers.get(bit);let paths;
   if(!d||sequential(d.c)){
    const clk=d?.c.connections?.CLK||d?.c.connections?.C;const isFF=d&&flop(d.c);
-   paths=[{start:d?`${d.name}.${d.port} · ${g.label(bit)}`:g.label(bit),launch:isFF?(clk?.[0]??null):null,launchKind:isFF?'register':d?'unsupported':'input',delay:isFF?virtualTech.clkToQ:0,nodes:[],startLine:sourceLine(d?.c.attributes?.src)}];
+   paths=[{start:d?`${d.name}.${d.port} · ${g.label(bit)}`:g.label(bit),startLabel:d?`${g.label(bit)} · ${isFF?'FF.Q':'unsupported cell'}`:g.label(bit),launch:isFF?(clk?.[0]??null):null,launchKind:isFF?'register':d?'unsupported':'input',delay:isFF?virtualTech.clkToQ:0,nodes:[],startLine:sourceLine(d?.c.attributes?.src)}];
   }else{
    const upstream=[];for(const[p,bits]of Object.entries(d.c.connections||{}))if(d.c.port_directions?.[p]==='input')for(const b of new Set(bits))for(const path of walk(b,depth+1))upstream.push({...path,nodes:[...path.nodes,{name:d.name,type:d.c.type,signal:g.label(bit),line:sourceLine(d.c.attributes?.src),delay:modelDelay(d.c.type)}],delay:path.delay+modelDelay(d.c.type)});
    const seen=new Set();paths=upstream.sort((a,b)=>b.delay-a.delay).filter(p=>{const key=p.start+p.nodes.map(n=>n.name).join('|');if(seen.has(key))return false;seen.add(key);return true;}).slice(0,3);
@@ -29,13 +29,13 @@ export function analyzePaths(netlist,frequencyMHz=100){
   active.delete(bit);memo.set(bit,paths);return paths;
  }
  const endpoints=[];
- for(const[name,c]of Object.entries(g.cells))if(flop(c))for(const bit of c.connections?.D||[])endpoints.push({bit,end:`${name}.D · ${g.label(bit)}`,capture:(c.connections.CLK||c.connections.C)?.[0]??null,endLine:sourceLine(c.attributes?.src),kind:'register'});
+ for(const[name,c]of Object.entries(g.cells))if(flop(c))(c.connections?.D||[]).forEach((bit,i)=>endpoints.push({bit,end:`${name}.D · ${g.label(bit)}`,endLabel:`${g.label(c.connections.Q?.[i]??bit)} · FF.D`,capture:(c.connections.CLK||c.connections.C)?.[0]??null,endLine:sourceLine(c.attributes?.src),kind:'register'}));
  for(const[name,p]of Object.entries(g.m.ports||{}))if(p.direction==='output')p.bits.forEach((bit,i)=>endpoints.push({bit,end:p.bits.length>1?`${name}[${i+(p.offset||0)}]`:name,capture:null,kind:'output',endLine:sourceLine(g.m.netnames?.[name]?.attributes?.src)}));
  if(endpoints.length>20000)throw Error('Endpoint limit exceeded');let paths=[];
  for(const e of endpoints)for(const p of walk(e.bit)){
   if(!p.nodes.length&&p.launchKind==='input'&&typeof e.bit==='string')continue;
   const sameClock=e.kind==='register'&&p.launchKind==='register'&&p.launch===e.capture;
-  paths.push({...p,end:e.end,endLine:e.endLine,depth:p.nodes.length,clock:sameClock?g.label(e.capture):null,estimatedSlack:sameClock?period-p.delay-virtualTech.setup-virtualTech.uncertainty:null,reason:sameClock?'same-clock-register':e.kind==='output'?'output-delay-unconstrained':p.launchKind==='input'?'input-delay-unconstrained':'cross-clock-or-unsupported'});
+  paths.push({...p,end:e.end,endLabel:e.endLabel||e.end,endLine:e.endLine,depth:p.nodes.length,clock:sameClock?g.label(e.capture):null,estimatedSlack:sameClock?period-p.delay-virtualTech.setup-virtualTech.uncertainty:null,reason:sameClock?'same-clock-register':e.kind==='output'?'output-delay-unconstrained':p.launchKind==='input'?'input-delay-unconstrained':'cross-clock-or-unsupported'});
  }
  const hasLatch=Object.values(g.cells).some(c=>/latch/i.test(c.type));if(hasLatch)paths=paths.map(p=>({...p,estimatedSlack:null,reason:'latch-timing-unsupported'}));
  paths.sort((a,b)=>b.delay-a.delay);const seen=new Set();paths=paths.filter(p=>{const key=p.start+'>'+p.end+'>'+p.nodes.map(n=>n.name).join('|');if(seen.has(key))return false;seen.add(key);return true;}).slice(0,10);

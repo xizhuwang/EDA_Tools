@@ -1,7 +1,7 @@
 // GPL-2.0-or-later. Icarus adapter derived from Xi-Zhu Wang's RTL Interview Lab.
 import {loadIcarus} from './runtime-loader.js';
 import {netlistStats} from '../core.js';
-import {analyzePaths,structuralChecks,placementSketch} from '../analysis.js';
+import {analyzePaths,structuralChecks,placementSketch,sourceLine} from '../analysis.js';
 const LIMIT=24000;
 function logSink(){let text='';const decoder=new TextDecoder();return {push(v){if(v==null)return;const chunk=typeof v==='string'?v:typeof v==='number'?String.fromCharCode(v):ArrayBuffer.isView(v)?decoder.decode(v,{stream:true}):String(v);if(text.length<LIMIT)text+=chunk.slice(0,LIMIT-text.length);},get text(){return text;}};}
 const ivlConfig=(top)=>`basedir:/\nmodule:system.vpi\ngeneration:2005\ngeneration:no-specify\nout:/out.vvp\niwidth:32\nwidthcap:65536\nfunctor:cprop\nfunctor:nodangle\nflag:DLL=vvp.tgt\nroot:${top}\n`;
@@ -27,7 +27,9 @@ export async function runJob(data){
   const script=action==='lint'
     ? `read_verilog -noautowire design.v; hierarchy -check -top ${top}; proc; flatten; opt_clean; check; write_json out.json`
     : `read_verilog -noautowire design.v; hierarchy -check -top ${top}; synth -top ${top} -flatten -noabc; delete t:$scopeinfo; opt_clean; stat; ltp -noff; write_json out.json`;
-  const files=await runYosys(['-p',script],{'design.v':new TextEncoder().encode(design)},{stdout:x=>log.push(x),stderr:x=>log.push(x)});
+  let files;
+  try{files=await runYosys(['-p',script],{'design.v':new TextEncoder().encode(design)},{stdout:x=>log.push(x),stderr:x=>log.push(x)});}
+  catch(error){const output=log.text+'\n'+String(error?.message||error);return{ok:false,phase:action,log:output,structured:[{rule:'YOSYS-ELAB',severity:'error',message:output.slice(-2500),line:sourceLine(output),origin:'Yosys parse/elaboration'}]};}
   if(!files?.['out.json'])throw Error(log.text||'Yosys returned no netlist');
   const raw=files['out.json'],json=typeof raw==='string'?raw:new TextDecoder().decode(raw);const netlist=JSON.parse(json);
   const findings=log.text.split('\n').filter(x=>/warning:|ERROR:|Latch inferred|multiple conflicting drivers|no driver|logic loop/i.test(x));

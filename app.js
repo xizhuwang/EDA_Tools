@@ -26,7 +26,7 @@ function run(action){
   worker.onerror=e=>{if(id!==jobId)return;finish();$('job-status').textContent='Engine error';$('console').textContent=e.message;tab('log');};
   worker.onmessage=({data:r})=>{
     if(r.id!==jobId)return;finish();$('console').textContent=r.log||'(no output)';$('job-status').textContent=r.ok?t('工具執行完成（不代表功能驗證通過）','Tool completed (not a functional PASS)'):t('工具失敗，請查看診斷','Tool failed; inspect diagnostics');
-    if(!r.ok){tab('log');return;}
+    if(!r.ok){if(action==='lint'&&r.structured){renderChecks(r.structured);tab('check');}else tab('log');return;}
     if(action==='run'){
       vcd=r.vcd||'';$('download-vcd').disabled=!vcd;
       if(!vcd){$('console').textContent+='\nNo /dump.vcd. Add $dumpfile("dump.vcd"); $dumpvars(0,tb); in your testbench.';return;}
