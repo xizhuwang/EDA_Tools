@@ -108,16 +108,15 @@ export function makeSram(kind,depth,width) {
       if(we_b) mem[addr_b] <= din_b;
       else dout_b <= mem[addr_b];
     end
-  end
   // Same-address dual writes are ILLEGAL: no physical guarantee.
   // Simulation marks the contested word X; never rely on port priority.
   // synthesis translate_off
-  always @(posedge clk)
     if(cs_a && we_a && cs_b && we_b && addr_a==addr_b) begin
       mem[addr_a] <= {${width}{1'bx}};
       $display("SRAM ERROR: same-address dual write at %t",$time);
     end
-  // synthesis translate_on`;
+  // synthesis translate_on
+  end`;
     contract='2RW: two read/write ports, COMMON clock only. Same-address read/write is read-first. Same-address dual write is illegal and emits a simulation diagnostic + X. Not an independent-clock macro.';
   }
   return {name,contract,source:`// Original behavioral model. GPL-2.0-or-later.

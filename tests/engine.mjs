@@ -10,4 +10,7 @@ for(const kind of ['1rw','1r1w','2rw']){
  if(kind==='2rw')tb=`module tb;reg clk=0,ca=0,wa=0,cb=0,wb=0;reg[5:0]aa=0,ab=0;reg[7:0]da=0,db=0;wire[7:0]qa,qb;${m.name} dut(clk,ca,wa,cb,wb,aa,ab,da,db,qa,qb);always #5 clk=~clk;initial begin $dumpfile("dump.vcd");$dumpvars(0,tb);@(negedge clk);ca=1;wa=1;da=8'h42;@(negedge clk);cb=1;wb=0;da=8'h55;@(negedge clk);if(qb!==8'h42)$display("FAIL readfirst");else $display("PASS");ca=0;@(negedge clk);if(qb!==8'h55)$display("FAIL next");$finish;end endmodule`;
  const r=await execute({design:m.source,tb,top:m.name,tbtop:'tb'});assert.equal(r.ok,true,r.log);assert.ok(r.log.includes('PASS')&&!r.log.includes('FAIL'),r.log);console.log('PASS SRAM '+kind+' simulation and read semantics');
 }
-console.log('All 8 real Icarus tests passed.');
+const dual=makeSram('2rw',64,8);
+const collision=await execute({top:dual.name,tbtop:'tb',design:dual.source,tb:`module tb;reg clk=0,ca=0,wa=0,cb=0,wb=0;reg[5:0]aa=0,ab=0;reg[7:0]da=8'h42,db=8'h55;wire[7:0]qa,qb;${dual.name} dut(clk,ca,wa,cb,wb,aa,ab,da,db,qa,qb);always #5 clk=~clk;initial begin @(negedge clk);ca=1;cb=1;wa=1;wb=1;@(negedge clk);wa=0;wb=0;@(negedge clk);if(qa!==8'hxx || qb!==8'hxx)$display("FAIL collision");else $display("PASS collision X");$finish;end endmodule`});
+assert.equal(collision.ok,true,collision.log);assert.ok(collision.log.includes('SRAM ERROR')&&collision.log.includes('PASS collision X')&&!collision.log.includes('FAIL'),collision.log);console.log('PASS SRAM dual-write collision produces diagnostic and X');
+console.log('All 9 real Icarus tests passed.');

@@ -46,7 +46,7 @@ npm test
 npm run dev # http://127.0.0.1:5182
 ```
 
-No npm dependencies/build are required. For real Icarus regression tests, populate `.engine-cache/` with the six assets listed in `engine/runtime-manifest.js`, verifying their hashes, then `npm run test:engine`. Never commit cache/tool binaries. Unit tests run in CI; real-engine test details are documented in `tests/engine.mjs`.
+No npm dependencies/build are required. For real Icarus regression tests, run `node tests/prepare-engine.mjs` to download and hash-verify the six assets in `.engine-cache/`, then `npm run test:engine`. Never commit cache/tool binaries. Both unit and real-engine tests run in CI. Test details are documented in `tests/engine.mjs`.
 
 GitHub Actions publishes the static site after unit checks. In repository Settings → Pages select GitHub Actions if first-run automatic enablement is unavailable. JS/WASM downloads may be blocked by local browser policy/CDN restrictions; cancel and retry or inspect the console. This release bounds rendering, but huge simulations can still exhaust Worker memory before the watchdog; use modest designs and dump scopes.
 

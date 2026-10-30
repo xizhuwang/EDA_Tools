@@ -2,7 +2,7 @@
 import {loadIcarus} from './runtime-loader.js';
 import {netlistStats} from '../core.js';
 const LIMIT=24000;
-function logSink(){let text='';return {push(v){if(text.length<LIMIT)text+=(String(v)+'\n').slice(0,LIMIT-text.length);},get text(){return text;}};}
+function logSink(){let text='';const decoder=new TextDecoder();return {push(v){if(v==null)return;const chunk=typeof v==='string'?v:typeof v==='number'?String.fromCharCode(v):ArrayBuffer.isView(v)?decoder.decode(v,{stream:true}):String(v);if(text.length<LIMIT)text+=chunk.slice(0,LIMIT-text.length);},get text(){return text;}};}
 const ivlConfig=(top)=>`basedir:/\nmodule:system.vpi\ngeneration:2005\ngeneration:no-specify\nout:/out.vvp\niwidth:32\nwidthcap:65536\nfunctor:cprop\nfunctor:nodangle\nflag:DLL=vvp.tgt\nroot:${top}\n`;
 export async function runJob(data){
   const {action,design,tb='',top,tbtop}=data;
@@ -11,13 +11,13 @@ export async function runJob(data){
   const log=logSink();
   if(action==='run'){
     const {initIvlpp,initIvl,initVvp}=await loadIcarus();let pre='';
-    const pp=await initIvlpp({print:x=>{if(pre.length>500000)throw Error('Preprocessed source limit');pre+=x+'\n';},printErr:x=>log.push(x)});
+    const pp=await initIvlpp({print:x=>{if(pre.length>500000)throw Error('Preprocessed source limit');pre+=x+'\n';},printErr:x=>log.push(x+'\n')});
     pp.FS.writeFile('/design.v','`timescale 1ns/1ps\n'+design+'\n');pp.FS.writeFile('/testbench.v','`timescale 1ns/1ps\n'+tb+'\n');
     pp.callMain(['-L','/design.v','/testbench.v']);
-    const ivl=await initIvl({print:x=>log.push(x),printErr:x=>log.push(x)});
+    const ivl=await initIvl({print:x=>log.push(x+'\n'),printErr:x=>log.push(x+'\n')});
     ivl.FS.writeFile('/ivl.conf',ivlConfig(tbtop));ivl.FS.writeFile('/src.v',pre);ivl.callMain(['-C/ivl.conf','--','/src.v']);
     let program;try{program=ivl.FS.readFile('/out.vvp');}catch{return {ok:false,phase:'compile',log:log.text};}
-    const vvp=await initVvp({print:x=>log.push(x),printErr:x=>log.push(x)});vvp.FS.writeFile('/sim.vvp',program);vvp.callMain(['/sim.vvp']);
+    const vvp=await initVvp({print:x=>log.push(x+'\n'),printErr:x=>log.push(x+'\n')});vvp.FS.writeFile('/sim.vvp',program);vvp.callMain(['/sim.vvp']);
     let vcd='';try{const size=vvp.FS.stat('/dump.vcd').size;if(size>600000)log.push('VCD exceeds 600 KB. Reduce $dumpvars scope or simulation duration.');else vcd=vvp.FS.readFile('/dump.vcd',{encoding:'utf8'});}catch{/* TB may omit dumping */}
     return {ok:true,phase:'simulation',log:log.text,vcd};
   }
