@@ -16,9 +16,19 @@ A browser-local Verilog-2005 workspace: independent RTL and testbench editors, a
 | SRAM | Original 1RW / 1R1W / common-clock 2RW; 64/256/1024 × 8/32/64; 27 combinations |
 | Reliability | One isolated Worker per job, cancellation, 60 s simulation / 180 s synthesis watchdog, bounded UI/log/VCD work |
 
+## v0.2: path explorer / RTL review / netlist sketch
+
+- Workspace tools now collapse above the editors; no permanent left sidebar.
+- Synthesis uses `synth -flatten -noabc` to retain more Yosys RTL source metadata. This deliberately differs from an ABC-optimized mapped design.
+- Up to 10 candidate data paths, retaining the best 3 per node under the educational model. Launch/capture, cell types, connected signals and available RTL line references are visible; references may cover expressions, not exact per-gate locations.
+- `EDU-GENERIC-v1` is an original, **arbitrary educational delay assumption**, not a process library or silicon benchmark. INV=0.04 ns; XOR/XNOR=0.12 ns; MUX=0.10 ns; other gates=0.07 ns; clock-to-Q=0.08 ns; setup=0.06 ns; uncertainty=0.10 ns. No slew/load/RC/clock skew/hold analysis. Target defaults to 100 MHz (10 ns), independently of TB clock.
+- Estimated slack is available only for same-clock FF-to-FF data paths. I/O without delays, crossings, and latch designs are not assigned passing slack. It is **not OpenSTA timing or sign-off**.
+- Rule-coded reports combine Yosys checks, heuristic RTL-style checks and clock-net topology review. CDC reports can identify potential crossings and a following FF; they do **not** certify 2FF safety, bus coherence, reconvergence, clock relations, reset crossing or protocol correctness. Review required. No report means no finding within implemented coverage, not a clean sign-off.
+- Physical flow now visualizes actual netlist cells/connections on an arbitrary grid (max 180 cells / 400 connections), highlights selected path cells, links available source lines, and exports SVG. **Not placement/routing or an APR estimate.** No physical units, die/core area, DRC, congestion or timing may be inferred from this sketch.
+
 ## 尚未完成：真實 PPA / APR
 
-**This release is not the complete RTL-to-GDS browser suite.** No online OpenSTA, OpenROAD, actual area, clock slack, critical timing path, cell power, placement/routing, CTS, SPEF, DRC/LVS or GDS generation is implemented. The Physical flow panel exports a starting ORFS config, explicitly labelled unexecuted. It must be adapted/tested in a separate ORFS installation; it is not a remote execution service.
+**This release is not the complete RTL-to-GDS browser suite.** No online OpenSTA, OpenROAD, actual area, physical clock slack, critical timing path, cell power, physical placement/routing, CTS, SPEF, DRC/LVS or GDS generation is implemented. The new educational slack model and netlist sketch above are explicitly non-physical. The Physical flow panel exports a starting ORFS config, labelled unexecuted. It must be adapted/tested in a separate ORFS installation; it is not a remote execution service.
 
 Generic cell count is **not** area (µm²). Unit logic depth is **not** timing (ns). No arbitrary power estimate is presented. A meaningful physical flow needs licensed technology/cell/macro Liberty/LEF/GDS, clock and I/O constraints, PVT corner, wire RC, activity assumptions and validated platform configuration.
 

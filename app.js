@@ -1,16 +1,17 @@
 // Copyright 2026 Xi-Zhu Wang. GPL-2.0-or-later.
 import {examples,makeSram,parseVcd,valueAt,displayValue,orfsTemplate} from './core.js';
+import {setupWorkbench,clearAnalysis,updateLanguage,renderChecks,acceptAnalysis} from './workbench.js';
 const $=id=>document.getElementById(id),key='eda-tools:workspace:v1';let locale='zh',worker=null,timer=null,jobId=0,vcd='',parsed=null,netlist='',saveTimer,cursor=0,selected=new Set();
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const t=(zh,en)=>locale==='zh'?zh:en;
-function translate(){document.documentElement.lang=locale==='zh'?'zh-Hant':'en';document.querySelectorAll('[data-zh]').forEach(el=>el.textContent=el.dataset[locale]);$('language').textContent=locale==='zh'?'English':'繁體中文';sramPreview();if(parsed)renderWave();}
+function translate(){document.documentElement.lang=locale==='zh'?'zh-Hant':'en';document.querySelectorAll('[data-zh]').forEach(el=>el.textContent=el.dataset[locale]);$('language').textContent=locale==='zh'?'English':'繁體中文';sramPreview();if(parsed)renderWave();updateLanguage(locale);}
 function highlight(id){const text=$(id).value;const re=/(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*")|\b(module|endmodule|input|output|wire|reg|always|initial|begin|end|if|else|case|endcase|assign|posedge|negedge|parameter|integer|repeat|for)\b|(\b\d+(?:'[bhdBoHD][0-9a-fA-FxzXZ_]+)?\b)/g;let result='',i=0;for(const m of text.matchAll(re)){result+=escape(text.slice(i,m.index));result+=`<span class="tok-${m[1]?'comment':m[2]?'string':m[3]?'keyword':'number'}">${escape(m[0])}</span>`;i=m.index+m[0].length;}$(id+'-highlight').innerHTML=result+escape(text.slice(i))+'\n';syncScroll(id);}
 function syncScroll(id){$(id+'-highlight').scrollTop=$(id).scrollTop;$(id+'-highlight').scrollLeft=$(id).scrollLeft;}
 function snapshot(){return {schema:1,design:$('design').value,tb:$('tb').value,top:$('top').value,tbtop:$('tbtop').value};}
 function save(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>{try{localStorage.setItem(key,JSON.stringify(snapshot()));$('save-state').textContent=t('已儲存於此瀏覽器','Saved in this browser');}catch{$('save-state').textContent=t('儲存失敗，請匯出備份','Save unavailable; export a backup');}},450);}
 function validProject(p){return p&&p.schema===1&&['design','tb','top','tbtop'].every(k=>typeof p[k]==='string')&&p.design.length<=150000&&p.tb.length<=150000;}
 function load(p){for(const id of ['design','tb','top','tbtop'])$(id).value=p[id];highlight('design');highlight('tb');invalidate();save();}
-function invalidate(){vcd='';parsed=null;netlist='';$('download-vcd').disabled=true;$('download-netlist').disabled=true;$('waveform').replaceChildren();$('waveform').className='empty';$('waveform').textContent=t('內容已變更，請重新執行模擬。','Sources changed. Run simulation again.');$('signal-list').replaceChildren();$('wave-time').textContent='';$('checks').textContent=t('尚未檢查目前版本。','Current revision not checked.');$('cell-count').textContent='—';$('logic-depth').textContent='—';$('cell-table').replaceChildren();$('path-info').textContent='';$('synth-log').textContent='';}
+function invalidate(){vcd='';parsed=null;netlist='';$('download-vcd').disabled=true;$('download-netlist').disabled=true;$('waveform').replaceChildren();$('waveform').className='empty';$('waveform').textContent=t('內容已變更，請重新執行模擬。','Sources changed. Run simulation again.');$('signal-list').replaceChildren();$('wave-time').textContent='';$('checks').textContent=t('尚未檢查目前版本。','Current revision not checked.');$('cell-count').textContent='—';$('logic-depth').textContent='—';$('cell-table').replaceChildren();$('path-info').textContent='';$('synth-log').textContent='';clearAnalysis();}
 function tab(name){document.querySelectorAll('[data-panel]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.panel===name)));document.querySelectorAll('.result-panel').forEach(el=>el.hidden=el.id!=='panel-'+name);}
 function download(name,text,type='text/plain'){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function finish(){clearTimeout(timer);worker?.terminate();worker=null;['run','lint','synth'].forEach(id=>$(id).disabled=false);$('cancel').disabled=true;$('runtime-state').textContent='● Browser-local';}
@@ -30,8 +31,8 @@ function run(action){
       vcd=r.vcd||'';$('download-vcd').disabled=!vcd;
       if(!vcd){$('console').textContent+='\nNo /dump.vcd. Add $dumpfile("dump.vcd"); $dumpvars(0,tb); in your testbench.';return;}
       try{parsed=parseVcd(vcd);selected=new Set(parsed.signals.slice(0,12).map((_,i)=>i));cursor=0;renderWave();tab('wave');}catch(e){$('console').textContent+='\n'+e.message;}
-    }else if(action==='lint'){diagnostics(r.findings);tab('check');}
-    else{netlist=r.netlist;$('download-netlist').disabled=false;$('cell-count').textContent=r.stats.total;$('logic-depth').textContent=r.stats.depth;$('path-info').textContent=t('拓樸最長路徑（每個泛用 cell 視為一級，非 STA）：','Longest topological path (one level per generic cell; NOT STA): ')+r.stats.path.join(' → ');$('cell-table').innerHTML='<table><thead><tr><th>Cell type</th><th>Count</th></tr></thead><tbody>'+Object.entries(r.stats.counts).sort((a,b)=>b[1]-a[1]).map(([k,n])=>`<tr><td>${escape(k)}</td><td>${n}</td></tr>`).join('')+'</tbody></table>';$('synth-log').textContent=r.log;tab('report');}
+    }else if(action==='lint'){renderChecks(r.structured);tab('check');}
+    else{netlist=r.netlist;$('download-netlist').disabled=false;$('cell-count').textContent=r.stats.total;$('logic-depth').textContent=r.stats.depth;acceptAnalysis(r);renderChecks(r.structured);$('cell-table').innerHTML='<table><thead><tr><th>Cell type</th><th>Count</th></tr></thead><tbody>'+Object.entries(r.stats.counts).sort((a,b)=>b[1]-a[1]).map(([k,n])=>`<tr><td>${escape(k)}</td><td>${n}</td></tr>`).join('')+'</tbody></table>';$('synth-log').textContent=r.log;tab('report');}
   };
   worker.postMessage({id,action,...snapshot()});
 }
@@ -71,5 +72,6 @@ $('insert-sram').onclick=()=>{const model=sramPreview();if(new RegExp('\\bmodule
 $('download-sram').onclick=()=>{const m=sramPreview();download(m.name+'.v',m.source);};
 $('export-flow').onclick=()=>{try{download('config.mk',orfsTemplate($('top').value,$('clock-port').value,Number($('clock-period').value)));}catch(e){alert(e.message);}};
 $('privacy').onclick=()=>$('legal').showModal();$('close-legal').onclick=()=>$('legal').close();
+setupWorkbench();
 try{const saved=JSON.parse(localStorage.getItem(key));if(validProject(saved))load(saved);else load(examples.counter);}catch{load(examples.counter);}
 translate();

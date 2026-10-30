@@ -1,0 +1,18 @@
+import assert from'node:assert/strict';import{analyzePaths,rtlRules,structuralChecks,placementSketch,sourceLine}from'../analysis.js';
+let passed=0;const test=(n,f)=>{f();passed++;console.log('PASS '+n);};
+const ff=(d,q,clock=10)=>({type:'$_DFF_P_',port_directions:{D:'input',Q:'output',C:'input'},connections:{D:[d],Q:[q],C:[clock]},attributes:{src:'design.v:7.1-8.5'}});
+const gate=(a,y)=>({type:'$_XOR_',port_directions:{A:'input',Y:'output'},connections:{A:[a],Y:[y]},attributes:{src:'design.v:4.1-4.9'}});
+const m={ports:{clk:{direction:'input',bits:[10]},other:{direction:'input',bits:[11]},out:{direction:'output',bits:[3]}},netnames:{q:{bits:[1]},mid:{bits:[2]},out:{bits:[3]},clk:{bits:[10]},other:{bits:[11]}},cells:{launch:ff(4,1),xor1:gate(1,2),xor2:gate(2,3),capture:ff(3,4)}};
+const nl={modules:{top:m}};
+test('same clock timing equation and source references',()=>{const r=analyzePaths(nl,100);const p=r.paths.find(p=>p.end.startsWith('capture.D'));assert.ok(p);assert.equal(p.nodes.length,2);assert.equal(p.nodes[0].line,4);assert.ok(Math.abs(p.delay-0.32)<1e-8);assert.ok(Math.abs(p.estimatedSlack-9.52)<1e-8);});
+test('multiple paths and output unconstrained',()=>{const r=analyzePaths(nl);assert.ok(r.paths.length>1);assert.ok(r.paths.find(p=>p.end==='out').estimatedSlack===null);});
+test('changing frequency changes estimated slack only',()=>{const a=analyzePaths(nl,100).paths.find(p=>p.end.startsWith('capture.D')),b=analyzePaths(nl,1000).paths.find(p=>p.end.startsWith('capture.D'));assert.equal(a.delay,b.delay);assert.ok(Math.abs(a.estimatedSlack-b.estimatedSlack-9)<1e-8);});
+test('cross clock is not assigned setup slack',()=>{const copy=structuredClone(nl);copy.modules.top.cells.capture=ff(3,4,11);assert.equal(analyzePaths(copy).paths.find(p=>p.end.startsWith('capture.D')).estimatedSlack,null);assert.ok(structuralChecks(copy,'').some(f=>f.rule==='CDC-CROSSING'));});
+test('latch disables all estimated slack',()=>{const copy=structuredClone(nl);copy.modules.top.cells.lat={type:'$dlatch',connections:{},port_directions:{}};assert.ok(analyzePaths(copy).paths.every(p=>p.estimatedSlack===null));assert.ok(structuralChecks(copy,'').some(f=>f.rule==='STRUCT-LATCH'));});
+test('heuristic line numbers and rule IDs',()=>{const r=rtlRules('// casex ignored\nmodule x;\nalways @* q <= d;\nendmodule');assert.ok(r.some(f=>f.rule==='RTL-COMB-NBA'&&f.line===3));assert.ok(!r.some(f=>f.rule==='RTL-CASEX'));});
+test('unsupported target frequencies rejected',()=>{assert.throws(()=>analyzePaths(nl,0));assert.throws(()=>analyzePaths(nl,NaN));});
+test('sketch references actual cells and nets',()=>{const s=placementSketch(nl);assert.equal(s.total,4);assert.equal(s.nodes.length,4);assert.ok(s.edges.some(e=>e.from==='xor1'&&e.to==='xor2'));assert.ok(s.nodes.every(n=>m.cells[n.name]));});
+test('sourceLine never invents a source location',()=>{assert.equal(sourceLine('design.v:12.5-14.2'),12);assert.equal(sourceLine('tool.cc:99'),null);});
+test('combinational cycle rejected',()=>{const copy=structuredClone(nl);copy.modules.top.cells.xor1=gate(3,2);assert.throws(()=>analyzePaths(copy),/loop/);});
+test('path count is bounded at ten',()=>{const copy=structuredClone(nl);for(let i=0;i<30;i++)copy.modules.top.cells['cap'+i]=ff(3,100+i);assert.ok(analyzePaths(copy).paths.length<=10);});
+console.log(`All ${passed} analysis checks passed.`);

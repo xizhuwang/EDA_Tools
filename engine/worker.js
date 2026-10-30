@@ -1,6 +1,7 @@
 // GPL-2.0-or-later. Icarus adapter derived from Xi-Zhu Wang's RTL Interview Lab.
 import {loadIcarus} from './runtime-loader.js';
 import {netlistStats} from '../core.js';
+import {analyzePaths,structuralChecks,placementSketch} from '../analysis.js';
 const LIMIT=24000;
 function logSink(){let text='';const decoder=new TextDecoder();return {push(v){if(v==null)return;const chunk=typeof v==='string'?v:typeof v==='number'?String.fromCharCode(v):ArrayBuffer.isView(v)?decoder.decode(v,{stream:true}):String(v);if(text.length<LIMIT)text+=chunk.slice(0,LIMIT-text.length);},get text(){return text;}};}
 const ivlConfig=(top)=>`basedir:/\nmodule:system.vpi\ngeneration:2005\ngeneration:no-specify\nout:/out.vvp\niwidth:32\nwidthcap:65536\nfunctor:cprop\nfunctor:nodangle\nflag:DLL=vvp.tgt\nroot:${top}\n`;
@@ -24,14 +25,17 @@ export async function runJob(data){
   if(!['lint','synth'].includes(action))throw Error('Unknown tool action');
   const {runYosys}=await import('https://cdn.jsdelivr.net/npm/@yowasp/yosys@0.65.176-dev.1145/gen/bundle.js');
   const script=action==='lint'
-    ? `read_verilog design.v; hierarchy -check -top ${top}; proc; opt_clean; check; write_json out.json`
-    : `read_verilog design.v; hierarchy -check -top ${top}; synth -top ${top} -flatten; delete t:$scopeinfo; opt_clean; stat; ltp -noff; write_json out.json`;
+    ? `read_verilog -noautowire design.v; hierarchy -check -top ${top}; proc; flatten; opt_clean; check; write_json out.json`
+    : `read_verilog -noautowire design.v; hierarchy -check -top ${top}; synth -top ${top} -flatten -noabc; delete t:$scopeinfo; opt_clean; stat; ltp -noff; write_json out.json`;
   const files=await runYosys(['-p',script],{'design.v':new TextEncoder().encode(design)},{stdout:x=>log.push(x),stderr:x=>log.push(x)});
   if(!files?.['out.json'])throw Error(log.text||'Yosys returned no netlist');
   const raw=files['out.json'],json=typeof raw==='string'?raw:new TextDecoder().decode(raw);const netlist=JSON.parse(json);
   const findings=log.text.split('\n').filter(x=>/warning:|ERROR:|Latch inferred|multiple conflicting drivers|no driver|logic loop/i.test(x));
   const latches=Object.values(netlist.modules||{}).flatMap(m=>Object.entries(m.cells||{}).filter(([,c])=>/latch/i.test(c.type)).map(([n])=>`Inferred latch: ${n}`));
   const stats=action==='synth'?netlistStats(netlist):null;
-  return {ok:true,phase:action,log:log.text,findings:[...new Set([...findings,...latches])],stats,netlist:json};
+  const structured=structuralChecks(netlist,design,findings);
+  const analysis=action==='synth'?analyzePaths(netlist,100):null;
+  const sketch=action==='synth'?placementSketch(netlist):null;
+  return {ok:true,phase:action,log:log.text,findings:[...new Set([...findings,...latches])],structured,analysis,sketch,stats,netlist:json};
 }
 self.addEventListener('message',async({data})=>{try{self.postMessage({id:data.id,...await runJob(data)});}catch(e){self.postMessage({id:data.id,ok:false,phase:data.action,log:String(e?.message||e)});}});
