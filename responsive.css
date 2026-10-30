@@ -1,0 +1,10 @@
+/* Keep example selection and privacy controls usable on small screens. */
+@media(max-width:1000px){
+  aside{display:flex;align-items:center;gap:12px;padding:12px 14px;border-right:0;border-bottom:1px solid #253044}
+  aside>h1,aside>p,aside>.eyebrow,aside>.divider,aside>.flow,aside>.sidebar-note{display:none}
+  aside label{margin:0;flex:1;max-width:270px}aside label>span{display:none}
+  aside select{font-size:12px}aside .secondary{width:auto;margin:0}
+  aside .text-button{margin-left:auto;padding:6px;font-size:10px}
+}
+@media(max-width:650px){aside{flex-wrap:wrap;gap:8px}aside .text-button{margin-left:0}}
+#path-info{overflow-wrap:anywhere}
